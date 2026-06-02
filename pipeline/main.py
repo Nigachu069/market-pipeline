@@ -1,6 +1,6 @@
-from extract import extract
-from transform import transform
-from load import load
+from pipeline.extract import extract
+from pipeline.transform import transform
+from pipeline.load import load
 
 def main(assets):
     for asset in assets:
@@ -14,7 +14,6 @@ def main(assets):
             print(f"Error processing {asset}: {e}\n")
             continue
 
-assets = ["AMD", "NVDA", "BTC-USD"]
-
 if __name__ == "__main__":
+    assets = ["AMD", "NVDA", "BTC-USD"]
     main(assets)

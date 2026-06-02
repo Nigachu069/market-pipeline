@@ -11,17 +11,27 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  pipeline:
-    build: .
-    command: python pipeline/main.py
+  
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - DB_HOST=db
+      - DB_NAME=market_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./pipeline:/opt/airflow/pipeline
+    ports:
+      - "8080:8080"
     depends_on:
       - db
-    environment:
-      DB_HOST: db
-      DB_NAME: market_db
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+    command: standalone
 
 volumes:
   pgdata:
