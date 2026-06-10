@@ -1,10 +1,11 @@
 import psycopg2
+import os
 
 conn = psycopg2.connect(
-    host="louis-market-db-2.c540ayeqouz4.ap-southeast-1.rds.amazonaws.com",
-    database="market_db",
-    user="postgres",
-    password="changeit123",
+    host=os.environ["DB_HOST"],
+    database=os.environ["DB_NAME"],
+    user=os.environ["DB_USER"],
+    password=os.environ["DB_PASSWORD"],
     port=5432
 )
 
