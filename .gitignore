@@ -1,4 +1,15 @@
-market_venv/
+market.venv/
+
+.env
+*.env
+settings.*.yml
+
+logs/
+
 __pycache__/
 *.pyc
-logs/
+*.pyo
+
+test_*.py
+
+.DS_Store
