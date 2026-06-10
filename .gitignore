@@ -12,4 +12,5 @@ __pycache__/
 
 test_*.py
 
-.DS_Store
+.DS_Store.env
+*.env
