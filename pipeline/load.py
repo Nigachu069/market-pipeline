@@ -61,9 +61,16 @@ def load(df):
         cursor = conn.cursor()
 
         sql = """
-                INSERT INTO fact_market_data 
+                INSERT INTO fact_market_data
                 (symbol_id, date_id, open, high, low, close, volume)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol_id, date_id)
+                DO UPDATE SET
+            open   = EXCLUDED.open,
+            high   = EXCLUDED.high,
+            low    = EXCLUDED.low,
+            close  = EXCLUDED.close,
+            volume = EXCLUDED.volume
             """
         
         for _, row in df.iterrows():
@@ -88,5 +95,7 @@ def load(df):
         print(f"Error loading data: {e}")
     
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
