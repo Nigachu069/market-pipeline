@@ -2,7 +2,13 @@ import psycopg2
 import os
 import boto3
 from datetime import date
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+@retry(
+    stop = stop_after_attempt(4),
+    wait = wait_exponential(multiplier=1, min=1, max=10),
+    retry = retry_if_exception_type(ConnectionError)
+)
 def get_or_create_symbol(cursor, symbol):
     cursor.execute("""
         SELECT symbol_id FROM dim_symbol 
@@ -45,6 +51,11 @@ def get_or_create_date(cursor, candle_time):
         ))
         return cursor.fetchone()[0]
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    retry=retry_if_exception_type(ConnectionError)
+)
 def load(df):
     host = os.environ["DB_HOST"]
     name = os.environ["DB_NAME"]
@@ -93,6 +104,12 @@ def load(df):
 
     except Exception as e:
         print(f"Error loading data: {e}")
+    
+    except psycopg2.OperationalError as e:
+        raise ConnectionError(f"DB connection failed: {e}") from e
+
+    except psycopg2.IntegrityError as e:
+        raise ValueError(f"Data integrity volation: {e}") from e
     
     finally:
         if cursor:

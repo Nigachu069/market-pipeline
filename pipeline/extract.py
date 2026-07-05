@@ -2,7 +2,13 @@ import psycopg2
 import os
 from datetime import date
 import yfinance as yf
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+@retry(
+    stop = stop_after_attempt(4),
+    wait = wait_exponential(multiplier=1, min=1, max=10),
+    retry = retry_if_exception_type(ConnectionError)
+)
 def get_last_loaded_date():
     """Check the most recent date already in the database."""
     try:
@@ -17,10 +23,18 @@ def get_last_loaded_date():
         result = cursor.fetchone()[0]
         cursor.close()
         conn.close()
-        return result   
+        return result
+    except psycopg2.OperationalError as e:
+        raise ConnectionError(f"DB connection failed: {e}") from e
     except Exception:
-        return None     
+        return None    
 
+
+@retry(
+    stop = stop_after_attempt(4),
+    wait = wait_exponential(multiplier=1, min=1, max=10),
+    retry = retry_if_exception_type(ConnectionError)
+)
 def extract(symbol):
     if not isinstance(symbol, str):
         raise ValueError("Symbol must be a string.")
@@ -39,4 +53,7 @@ def extract(symbol):
         return df
     
     except Exception as e:
+        raise ConnectionError(f"DB connection failed: {e}") from e
+    
+    except ValueError as e:
         raise ValueError(f"Error occurred while extracting data for symbol '{symbol}': {e}")
