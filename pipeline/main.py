@@ -4,7 +4,6 @@ from pipeline.load import load
 
 def main(assets):
     failed = []
-
     for asset in assets:
         try:
             print(f"Processing {asset}...")

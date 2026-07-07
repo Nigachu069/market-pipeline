@@ -12,5 +12,4 @@ def transform(df ,symbol):
     df = df.rename(columns = {"date" : "candle_time"})
     df = df.drop(columns=['dividends', 'stock splits'], errors='ignore')
     df = df.dropna()
-
     return df
