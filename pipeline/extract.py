@@ -1,8 +1,10 @@
 import psycopg2
 import os
-from datetime import date
-import yfinance as yf
+import requests as rq
+from datetime import date, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+os.environ["ALPHA_VANTAGE_KEY"] = "YO5P6XFFU9YAJEE5"
 
 @retry(
     stop = stop_after_attempt(4),
@@ -27,8 +29,38 @@ def get_last_loaded_date():
     except psycopg2.OperationalError as e:
         raise ConnectionError(f"DB connection failed: {e}") from e
     except Exception:
-        return None    
+        return None
 
+def validate_extract(df, symbol):
+    if df.empty:
+        raise ValueError(f"Empty DataFrame returned for '{symbol}'")
+
+    required_columns = {"open", "high", "low", "close", "volume"}
+    missing = required_columns - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing columns for '{symbol}': {missing}")
+    
+    for col in required_columns:
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            raise ValueError(f"Column '{col}' is not numeric for '{symbol}'")
+        
+        if df[col].isnull().any():
+            raise ValueError(f"Null value in {col} for '{symbol}'")
+    
+    if (df["volume"] < 0).any():
+        raise ValueError(f"Volume must be above or equal to 0 for'{symbol}'")
+
+    if (df["high"] < df["low"]).any():
+        raise ValueError(f"day high is below day low for '{symbol}'")
+    
+    df_check = df.reset_index()
+    if df_check.duplicated(subset=["Date"]).any():
+        raise ValueError(f"Duplicated data for '{symbol}'")
+    
+    if df.index.max().date() < (date.today() - timedelta(days = 5)):
+        print(f"Outdated data for '{symbol}' - latest date: {date.today() - timedelta(days = 5)}")
+    
+    return True
 
 @retry(
     stop = stop_after_attempt(4),
@@ -41,19 +73,39 @@ def extract(symbol):
     try: 
         last_date = get_last_loaded_date()
         if last_date is None:
-            period = "3mo"
+            period = 180
         else:
             days_since = (date.today() - last_date).days
-            period = f"{max(days_since , 2)}d"
+            period = max(days_since , 2)
 
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period=period)
+        response = rq.get(
+            "https://www.alphavantage.co/query",
+            params = {
+            "function": "TIME_SERIES_DAILY",
+            "symbol": symbol,
+            "apikey": os.environ.get("ALPHA_VANTAGE_KEY")
+            }
+        )
+
+        data = response.json()
+        time_series = data["Time Series (Daily)"]
+        df = pd.DataFrame.from_dict(time_series, orient="index")
+
+        df.columns = [col.split(". ")[1] for col in df.columns]
+        df.index = pd.to_datetime(df.index)
+        df.index.name = "date"
+        df = df.astype(float)
+
+        df = df.head(period)
+
         if df.empty:
-            raise RuntimeError(f"Failed to extract data for {symbol}: {e}") from e
+            raise RuntimeError(f"Failed to extract data for {symbol}") 
+        
+        validate_extract(df, symbol)
         return df
     
-    except Exception as e:
-        raise ConnectionError(f"DB connection failed: {e}") from e
-    
     except ValueError as e:
-        raise ValueError(f"Error occurred while extracting data for symbol '{symbol}': {e}")
+        raise 
+
+    except Exception as e:
+        raise ConnectionError(f"Network error extracting {symbol}: {e}") from e
